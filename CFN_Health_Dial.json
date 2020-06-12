@@ -1,0 +1,215 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    
+    "Description": "Resources needed to deploy a scheduled lambda function.\n",
+
+    "Metadata" : {
+        "AWS::CloudFormation::Interface" : {
+          "ParameterGroups" : [
+            {
+              "Label" : { "default" : "Communication Channels - Slack/Microsoft Teams/Pager Duty" },
+              "Parameters" : ["SlackWebhookURL", "MicrosoftTeamsWebhookURL", "PagerDutyChannelURL"]
+            },
+            {
+                "Label" : { "default" : "Email Setup - For Alerting via Email" },
+                "Parameters" : [ "FromEmail" , "ToEmail", "Subject" ]
+            },
+            {
+              "Label" : { "default" : "More Configurations - Optional" },
+              "Parameters" : [ "HealthAPIFrequency" , "Regions" ]
+            }
+          ]
+    }
+},
+    
+
+    "Parameters": {
+        "SlackWebhookURL":{
+
+            "Description": "Enter the Slack Webhook URL. If you don't prefer to use Slack, leave it blank.",
+            "Type": "String",
+            "Default": "None"
+        },
+        "MicrosoftTeamsWebhookURL":{
+
+            "Description": "Enter Microsoft Teams Webhook URL. If you don't prefer to use MS Teams, leave it blank.",
+            "Type": "String",
+            "Default": "None"
+        },
+        "PagerDutyChannelURL":{
+
+            "Description": "Enter PagerDuty Service ID. If you don't prefer to use Pager Duty, leave it blank.",
+            "Type": "String",
+            "Default": "None"
+        },
+        "HealthAPIFrequency": {
+            "Description": "Please select the rate at which you want to monitor the health API",
+            "Default": "rate(1 minute)",
+            "AllowedValues": [
+                "rate(1 minute)",
+                "rate(3 minutes)",
+                "rate(5 minutes)"
+            ],
+            "Type": "String"
+        },
+
+        "Regions":{
+            "Description": "Enter up to 10 regions. Valid Values: us-east-1, us-east-2, us-west-1, us-west-2, af-south-1, ap-east-1, ap-south-1, ap-northeast-3, ap-northeast-2, ap-southeast-1, ap-southeast-2, ap-northeast-1, ca-central-1, eu-central-1, eu-west-1, eu-west-2, eu-south-1, eu-south-3, eu-north-1, me-south-1, sa-east-1, global",
+            "Default": "us-east-1,us-east-2,us-west-1,us-west-2,global",
+            "Type" : "CommaDelimitedList"
+        },
+
+        "FromEmail":{
+              "Description" : "Enter FROM Email Address",
+             "Type" : "String"
+        },
+
+        "ToEmail":{
+            "Description" : "Enter email addresses separated by commas (for ex: abc@amazon.com, bcd@amazon.com)",
+           "Type" : "String"
+      },
+
+      "Subject": {
+            "Description" : "Enter the subject of the email address",
+            "Type" : "String",
+            "Default" : "AWS Health Alert"
+      }
+        
+    },
+    
+
+
+    "Resources": {
+        "LambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                    "arn:aws:iam::aws:policy/SecretsManagerReadWrite",
+                    "arn:aws:iam::aws:policy/AWSHealthFullAccess",
+                    "arn:aws:iam::aws:policy/AmazonSESFullAccess"
+                ]
+            }
+        },
+        "LambdaSchedule": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+                "Description": "Lambda trigger Event",
+                "ScheduleExpression": {
+                    "Ref": "HealthAPIFrequency"
+                },
+                "State": "ENABLED",
+                "Targets": [
+                    {
+                        "Arn": {
+                            "Fn::Sub": "${LambdaFunction.Arn}"
+                        },
+                        "Id": "LambdaSchedule"
+                    }
+                ]
+            }
+        },
+        "LambdaSchedulePermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": {
+                    "Fn::Sub": "${LambdaFunction.Arn}"
+                },
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                    "Fn::Sub": "${LambdaSchedule.Arn}"
+                }
+            }
+        },
+         
+        
+            "MicrosoftChannelSecret": {
+              "Type": "AWS::SecretsManager::Secret",
+              "Properties": {
+                "Name": "MicrosoftChannelID",
+                "Description": "Microsoft Channel ID Secret.",
+                "SecretString": {"Ref": "MicrosoftTeamsWebhookURL"},
+                "Tags": [
+                  {
+                    "Key": "HealthCheckMicrosoft",
+                    "Value": "ChannelID"
+                  }
+                ]
+              }
+            },
+          
+
+            "SlackChannelSecret": {
+                "Type": "AWS::SecretsManager::Secret",
+                "Properties": {
+                  "Name": "SlackChannelID",
+                  "Description": "Slack Channel ID Secret.",
+                  "SecretString": {"Ref": "SlackWebhookURL"},
+                  "Tags": [
+                    {
+                      "Key": "HealthCheckSlack",
+                      "Value": "ChannelID"
+                    }
+                  ]
+                }
+              },
+            
+            "PagerDutySecret": {
+                "Type": "AWS::SecretsManager::Secret",
+                "Properties": {
+                  "Name": "PagerDutyChannelID",
+                  "Description": "Slack Channel ID Secret.",
+                  "SecretString": {"Ref": "PagerDutyChannelURL"},
+                  "Tags": [
+                    {
+                      "Key": "HealthCheckPagerDuty ",
+                      "Value": "ChannelID"
+                    }
+                  ]
+                }
+              },
+
+        "LambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Description": "Lambda function that runs healthchecks'\n",
+                "Code": {
+                    "S3Bucket": "lambdacheckhealth2020",
+                    "S3Key": "aws-health-dial.zip"
+                },
+                "Handler": "handler.main",
+                "MemorySize": 128,
+                "Timeout" : 600,
+                "Role": {
+                    "Fn::Sub": "${LambdaExecutionRole.Arn}"
+                },
+                "Runtime": "python3.6",
+                "Environment":{
+                    "Variables" : {
+                                  "REGIONS_LIST" :{"Fn::Join":["|", {"Ref": "Regions"}] },
+                                  "FROM_EMAIL" : {"Ref": "FromEmail"},
+                                  "TO_EMAIL"   : { "Ref": "ToEmail" },
+                                  "EMAIL_SUBJECT" : {"Ref":  "Subject"}
+                                 }
+                  }
+            }
+        }
+    }
+}
