@@ -1,14 +1,14 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    
+
     "Description": "Resources needed to deploy a scheduled lambda function.\n",
 
     "Metadata" : {
         "AWS::CloudFormation::Interface" : {
           "ParameterGroups" : [
             {
-              "Label" : { "default" : "Communication Channels - Slack/Microsoft Teams/Pager Duty" },
-              "Parameters" : ["SlackWebhookURL", "MicrosoftTeamsWebhookURL", "PagerDutyChannelURL"]
+              "Label" : { "default" : "Communication Channels - Slack/Microsoft Teams/Amazon Chime/Pager Duty" },
+              "Parameters" : ["SlackWebhookURL", "MicrosoftTeamsWebhookURL", "AmazonChimeWebhookURL", "PagerDutyChannelURL"]
             },
             {
                 "Label" : { "default" : "Email Setup - For Alerting via Email" },
@@ -21,7 +21,7 @@
           ]
     }
 },
-    
+
 
     "Parameters": {
         "SlackWebhookURL":{
@@ -33,6 +33,11 @@
         "MicrosoftTeamsWebhookURL":{
 
             "Description": "Enter Microsoft Teams Webhook URL. If you don't prefer to use MS Teams, leave it blank.",
+            "Type": "String",
+            "Default": "None"
+        },
+        "AmazonChimeWebhookURL": {
+            "Description": "Enter the Chime Webhook URL, If you don't prefer to use Amazon Chime, leave the default.",
             "Type": "String",
             "Default": "None"
         },
@@ -74,9 +79,9 @@
             "Type" : "String",
             "Default" : "AWS Health Alert"
       }
-        
+
     },
-    
+
 
 
     "Resources": {
@@ -138,8 +143,8 @@
                 }
             }
         },
-         
-        
+
+
             "MicrosoftChannelSecret": {
               "Type": "AWS::SecretsManager::Secret",
               "Properties": {
@@ -154,7 +159,7 @@
                 ]
               }
             },
-          
+
 
             "SlackChannelSecret": {
                 "Type": "AWS::SecretsManager::Secret",
@@ -170,7 +175,7 @@
                   ]
                 }
               },
-            
+
             "PagerDutySecret": {
                 "Type": "AWS::SecretsManager::Secret",
                 "Properties": {
@@ -185,6 +190,21 @@
                   ]
                 }
               },
+             "ChimeChannelSecret": {
+                "Type": "AWS::SecretsManager::Secret",
+                "Properties": {
+                  "Name": "ChimeChannelID",
+                  "Description": "Chime Channel ID Secret.",
+                  "SecretString": {"Ref": "AmazonChimeWebhookURL"},
+                  "Tags": [
+                    {
+                      "Key": "HealthCheckChime",
+                      "Value": "ChannelID"
+                    }
+                  ]
+                }
+              },
+
 
         "LambdaFunction": {
             "Type": "AWS::Lambda::Function",
