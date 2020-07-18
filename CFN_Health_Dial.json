@@ -212,7 +212,7 @@
                 "Description": "Lambda function that runs healthchecks'\n",
                 "Code": {
                     "S3Bucket": "lambdacheckhealth2020",
-                    "S3Key": "aws-health-dial.zip"
+                    "S3Key": "aws-health-dial-alerts.zip"
                 },
                 "Handler": "handler.main",
                 "MemorySize": 128,
